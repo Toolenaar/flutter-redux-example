@@ -8,8 +8,22 @@ class AddItemAction{
   }
   int get id => _id;
 }
+
 class RemoveItemAction{
   final Item item;
   RemoveItemAction(this.item);
 }
+
 class RemoveItemsAction{}
+
+class GetItemsAction{}
+
+class LoadedItemsAction{
+  List<Item> items;
+  LoadedItemsAction(this.items);
+}
+
+class ItemCompletedAction {
+  final Item item;
+  ItemCompletedAction(this.item);
+}

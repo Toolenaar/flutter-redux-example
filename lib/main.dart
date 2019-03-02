@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_redux_example/model/model.dart';
 import 'package:flutter_redux_example/redux/reducers.dart';
 import 'package:flutter_redux_example/redux/actions.dart';
+import 'package:flutter_redux_example/redux/middleware.dart';
 import 'package:redux/redux.dart';
+import 'package:redux_dev_tools/redux_dev_tools.dart';
+import 'package:flutter_redux_dev_tools/flutter_redux_dev_tools.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 
 void main() => runApp(MyApp());
@@ -11,8 +14,16 @@ void main() => runApp(MyApp());
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final Store<AppState> store =
-        Store<AppState>(appStateReducer, initialState: AppState.initialState());
+    final DevToolsStore<AppState> store = DevToolsStore<AppState>(
+        appStateReducer,
+        initialState: AppState.initialState(),
+        middleware: appStateMiddleware());
+    // final Store<AppState> store =
+    //     Store<AppState>(
+    //       appStateReducer,
+    //       initialState: AppState.initialState(),
+    //       middleware: [appStateMiddleware]
+    //       );
 
     return StoreProvider<AppState>(
       store: store,
@@ -21,37 +32,40 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           primarySwatch: Colors.blue,
         ),
-        home: MyHomePage(title: 'Flutter redux example'),
+        home: StoreBuilder<AppState>(
+            onInit: (store) => store.dispatch(GetItemsAction()),
+            builder: (BuildContext context, Store<AppState> store) =>
+                MyHomePage(title: 'Flutter redux example', store: store)),
       ),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+class MyHomePage extends StatelessWidget {
+  final DevToolsStore<AppState> store;
+  MyHomePage({Key key, this.title, this.store}) : super(key: key);
 
   final String title;
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: Container(
+        color: Colors.white30,
+        child: ReduxDevTools(store),
+      ),
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(title),
       ),
       body: StoreConnector<AppState, _ViewModel>(
         converter: (Store<AppState> store) => _ViewModel.create(store),
         builder: (BuildContext context, _ViewModel viewModel) => Column(
               children: <Widget>[
-                AddItemWidget(model:viewModel),
+                AddItemWidget(model: viewModel),
                 Expanded(
-                  child: ItemListWidget(model:viewModel),
+                  child: ItemListWidget(model: viewModel),
                 ),
-                RemoveItemsButton(model:viewModel)
+                RemoveItemsButton(model: viewModel)
               ],
             ),
       ),
@@ -64,9 +78,14 @@ class _ViewModel {
   final Function(String) onAddItem;
   final Function(Item) onRemoveItem;
   final Function() onRemoveItems;
+  final Function(Item) onCompleted;
 
   _ViewModel(
-      {this.items, this.onAddItem, this.onRemoveItem, this.onRemoveItems});
+      {this.items,
+      this.onAddItem,
+      this.onRemoveItem,
+      this.onRemoveItems,
+      this.onCompleted});
 
   factory _ViewModel.create(Store<AppState> store) {
     _onAddItem(String body) {
@@ -81,10 +100,15 @@ class _ViewModel {
       store.dispatch(RemoveItemsAction());
     }
 
+    _onCompleted(Item item) {
+      store.dispatch(ItemCompletedAction(item));
+    }
+
     return _ViewModel(
         items: store.state.items,
         onAddItem: _onAddItem,
         onRemoveItem: _onRemoveItem,
+        onCompleted: _onCompleted,
         onRemoveItems: _onRemoveItems);
   }
 }
@@ -125,6 +149,12 @@ class ItemListWidget extends StatelessWidget {
         children: model.items
             .map((Item item) => ListTile(
                   title: Text(item.body),
+                  trailing: Checkbox(
+                    value: item.completed,
+                    onChanged: (b) {
+                      model.onCompleted(item);
+                    },
+                  ),
                   leading: IconButton(
                     icon: Icon(Icons.delete),
                     onPressed: () => model.onRemoveItem(item),
@@ -145,6 +175,7 @@ class RemoveItemsButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return RaisedButton(
       child: Text('remove all items'),
-      onPressed: () => model.onRemoveItems(),);
+      onPressed: () => model.onRemoveItems(),
+    );
   }
 }
